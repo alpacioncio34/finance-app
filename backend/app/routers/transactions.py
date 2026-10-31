@@ -11,7 +11,7 @@ from app.models import (
     TransactionUpdate,
     TxKind,
 )
-from app.services import month_range
+from app.services.dates import month_range
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 

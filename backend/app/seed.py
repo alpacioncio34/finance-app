@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from sqlmodel import Session, select
 
 from app.models import Account, AccountType, Budget, Category, Transaction, TxKind
-from app.services import month_range, shift_month
+from app.services.dates import month_range, shift_month
 
 DEFAULT_CATEGORIES = [
     # (name, kind, color, ionicon)
