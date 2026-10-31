@@ -1,7 +1,10 @@
 import os
 from collections.abc import Iterator
+from dotenv import load_dotenv
 
 from sqlmodel import Session, SQLModel, create_engine
+
+load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./finance.db")
 
