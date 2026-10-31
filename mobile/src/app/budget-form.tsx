@@ -58,11 +58,11 @@ export default function BudgetForm() {
               .map((c) => ({ value: c.id, label: c.name, color: c.color, icon: c.icon as IconName }))}
           />
         </Field>
-        <Field label="Monthly limit (€)">
+        <Field label="Monthly limit in euros">
           <Input value={limit} onChangeText={setLimit} placeholder="0,00" keyboardType="decimal-pad" autoFocus />
         </Field>
         {error && <Text color={t.expense}>{error}</Text>}
-        <Button title="Save budget" icon="checkmark" onPress={save} loading={saving} />
+        <Button title="Save budget" onPress={save} loading={saving} />
         {editingId && <Button title="Remove budget" variant="danger" icon="trash-outline" onPress={remove} />}
       </Screen>
     </KeyboardAvoidingView>

@@ -7,7 +7,7 @@ import { api, type TxKind } from '@/lib/api';
 import { confirm } from '@/lib/confirm';
 import { centsToInput, isValidISODate, parseAmountToCents, todayISO } from '@/lib/format';
 import { useLookups } from '@/lib/lookups';
-import { space, useTheme } from '@/lib/theme';
+import { font, space, useTheme } from '@/lib/theme';
 
 export default function TransactionForm() {
   const t = useTheme();
@@ -52,8 +52,8 @@ export default function TransactionForm() {
   async function save() {
     const cents = parseAmountToCents(amount);
     if (!cents || cents <= 0) return setError('Enter an amount greater than 0.');
-    if (!accountId) return setError('Pick an account (create one in the Accounts tab first).');
-    if (!isValidISODate(date)) return setError('Date must look like 2026-10-29.');
+    if (!accountId) return setError('Choose an account. Create one in the Accounts tab first.');
+    if (!isValidISODate(date)) return setError('Enter the date as YYYY-MM-DD, for example 2026-10-29.');
     setError(null);
     setSaving(true);
     try {
@@ -85,19 +85,19 @@ export default function TransactionForm() {
           value={kind}
           onChange={changeKind}
           options={[
-            { value: 'expense', label: 'Expense', color: t.expense },
+            { value: 'expense', label: 'Spent', color: t.expense },
             { value: 'income', label: 'Income', color: t.income },
           ]}
         />
 
-        <Field label="Amount (€)">
+        <Field label="Amount in euros">
           <Input
             value={amount}
             onChangeText={setAmount}
             placeholder="0,00"
             keyboardType="decimal-pad"
             autoFocus={!editingId}
-            style={{ fontSize: 28, fontWeight: '700', color: kind === 'income' ? t.income : t.text }}
+            style={{ fontFamily: font.displayHeavy, fontSize: 32, color: kind === 'income' ? t.income : t.text }}
           />
         </Field>
 
@@ -130,8 +130,8 @@ export default function TransactionForm() {
 
         {error && <Text color={t.expense}>{error}</Text>}
 
-        <Button title={editingId ? 'Save changes' : 'Add transaction'} icon="checkmark" onPress={save} loading={saving} disabled={noAccounts} />
-        {editingId && <Button title="Delete" variant="danger" icon="trash-outline" onPress={remove} />}
+        <Button title={editingId ? 'Save changes' : 'Add transaction'} onPress={save} loading={saving} disabled={noAccounts} />
+        {editingId && <Button title="Delete transaction" variant="danger" icon="trash-outline" onPress={remove} />}
       </Screen>
     </KeyboardAvoidingView>
   );

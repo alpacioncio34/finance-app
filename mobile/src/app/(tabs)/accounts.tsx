@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, RefreshControl, View } from 'react-native';
 
-import { Card, Empty, ErrorBanner, Fab, Screen, Text } from '@/components/ui';
+import { Card, Empty, ErrorBanner, Fab, HeroCard, IconTile, Screen, Text } from '@/components/ui';
 import { api, type Account } from '@/lib/api';
 import { confirm } from '@/lib/confirm';
 import { ACCOUNT_TYPES } from '@/lib/constants';
@@ -24,51 +24,44 @@ export default function Accounts() {
 
   return (
     <>
-      <Screen refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
+      <Screen title="Accounts" refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
         {error && <ErrorBanner message={error} onRetry={refetch} />}
-        <View style={{ gap: space.xs }}>
-          <Text variant="label">Net worth</Text>
-          <Text variant="title" color={total < 0 ? t.expense : t.text}>{formatMoney(total)}</Text>
-        </View>
+        <HeroCard>
+          <View style={{ gap: space.xs }}>
+            <Text variant="label" color={t.onHero} style={{ opacity: 0.8 }}>Net worth</Text>
+            <Text variant="title" numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 46, lineHeight: 52, letterSpacing: -1.5 }} color={t.onHero}>{formatMoney(total)}</Text>
+            <Text variant="caption" color={t.onHero} style={{ opacity: 0.85 }}>{data?.length ?? 0} account{data?.length === 1 ? '' : 's'}</Text>
+          </View>
+        </HeroCard>
 
         {data?.length === 0 && <Empty icon="wallet-outline" title="No accounts yet" hint="Add your bank account, savings and cash to start tracking." />}
 
-        <Card style={{ paddingVertical: space.xs }}>
-          {data?.map((a, i) => {
+        <View style={{ gap: space.md }}>
+          {data?.map((a) => {
             const type = ACCOUNT_TYPES.find((x) => x.value === a.type);
             return (
-              <Pressable key={a.id} onLongPress={() => remove(a)} delayLongPress={400}>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: space.md,
-                    paddingVertical: space.md,
-                    borderTopWidth: i === 0 ? 0 : 1,
-                    borderTopColor: t.border,
-                  }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name={type?.icon ?? 'wallet'} size={20} color={t.accent} />
-                  </View>
+              <Pressable key={a.id} accessibilityHint="Long-press to delete" onLongPress={() => remove(a)} delayLongPress={400}>
+                <Card style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                  <IconTile icon={type?.icon ?? 'wallet'} color={t.accent} size={48} />
                   <View style={{ flex: 1 }}>
                     <Text variant="heading">{a.name}</Text>
-                    <Text variant="caption">{type?.label}{a.external_id ? ' · synced' : ' · manual'}</Text>
+                    <Text variant="caption">{type?.label}, {a.external_id ? 'synced' : 'added by hand'}</Text>
                   </View>
-                  <Text variant="amount" color={a.balance_cents < 0 ? t.expense : t.text}>
+                  <Text variant="amount" color={a.balance_cents < 0 ? t.expense : t.text} style={{ fontSize: 18 }}>
                     {formatMoney(a.balance_cents, a.currency)}
                   </Text>
-                </View>
+                </Card>
               </Pressable>
             );
           })}
-        </Card>
-        {!!data?.length && <Text variant="caption" style={{ textAlign: 'center' }}>Long-press an account to delete it.</Text>}
+        </View>
+        {!!data?.length && <Text variant="caption">Long-press an account to delete it.</Text>}
 
-        <Card style={{ flexDirection: 'row', gap: space.md, alignItems: 'center', backgroundColor: t.accentSoft, borderColor: t.accentSoft }}>
+        <Card style={{ flexDirection: 'row', gap: space.md, alignItems: 'flex-start', backgroundColor: t.accentSoft, borderColor: t.accentSoft }}>
           <Ionicons name="link-outline" size={22} color={t.accent} />
           <View style={{ flex: 1 }}>
             <Text variant="heading" color={t.accent}>Bank sync</Text>
-            <Text variant="caption">Coming later: connect your bank via Open Banking (PSD2) to import transactions automatically.</Text>
+            <Text variant="caption">Not available yet. Soon you'll be able to connect your bank and import transactions automatically.</Text>
           </View>
         </Card>
       </Screen>

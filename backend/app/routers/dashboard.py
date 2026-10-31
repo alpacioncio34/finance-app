@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlmodel import Session, func, select
+from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Category, Transaction, TransactionRead, TxKind
-from app.services import account_balances, current_month, month_range, shift_month
+from app.models import Category, Transaction, TransactionRead
+from app.services.dates import current_month, shift_month
+from app.services.money import account_balances, month_totals, spending_by_category
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -33,32 +34,15 @@ class Dashboard(BaseModel):
     recent: list[TransactionRead]
 
 
-def _totals(session: Session, month: str) -> tuple[int, int]:
-    start, end = month_range(month)
-    rows = dict(
-        session.exec(
-            select(Transaction.kind, func.sum(Transaction.amount_cents))
-            .where(Transaction.date >= start, Transaction.date < end)
-            .group_by(Transaction.kind)
-        ).all()
-    )
-    return int(rows.get(TxKind.income, 0) or 0), int(rows.get(TxKind.expense, 0) or 0)
-
-
 @router.get("", response_model=Dashboard)
 def get_dashboard(
     month: str = Query(default_factory=current_month, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
     months_back: int = Query(6, ge=1, le=24),
     session: Session = Depends(get_session),
 ):
-    income, expense = _totals(session, month)
+    income, expense = month_totals(session, month)
 
-    start, end = month_range(month)
-    by_cat = session.exec(
-        select(Transaction.category_id, func.sum(Transaction.amount_cents))
-        .where(Transaction.kind == TxKind.expense, Transaction.date >= start, Transaction.date < end)
-        .group_by(Transaction.category_id)
-    ).all()
+    by_cat = spending_by_category(session, month)
     cats = {c.id: c for c in session.exec(select(Category)).all()}
     spending = sorted(
         (
@@ -68,7 +52,7 @@ def get_dashboard(
                 color=cats[cid].color if cid in cats else "#94a3b8",
                 amount_cents=int(total),
             )
-            for cid, total in by_cat
+            for cid, total in by_cat.items()
         ),
         key=lambda s: s.amount_cents,
         reverse=True,
@@ -77,7 +61,7 @@ def get_dashboard(
     trend = []
     for i in range(months_back - 1, -1, -1):
         m = shift_month(month, -i)
-        inc, exp = _totals(session, m)
+        inc, exp = month_totals(session, m)
         trend.append(MonthTotals(month=m, income_cents=inc, expense_cents=exp))
 
     recent = session.exec(

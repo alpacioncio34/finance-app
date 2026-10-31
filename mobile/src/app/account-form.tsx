@@ -41,14 +41,14 @@ export default function AccountForm() {
         <Field label="Type">
           <ChipPicker value={type} onChange={setType} options={ACCOUNT_TYPES} />
         </Field>
-        <Field label="Current balance (€)">
+        <Field label="Current balance in euros">
           <Input value={balance} onChangeText={setBalance} placeholder="0,00" keyboardType="numbers-and-punctuation" />
         </Field>
         <Text variant="caption">
           This is the balance today. New transactions you add will move it up or down. Use a negative number for credit card debt.
         </Text>
         {error && <Text color={t.expense}>{error}</Text>}
-        <Button title="Create account" icon="checkmark" onPress={save} loading={saving} />
+        <Button title="Create account" onPress={save} loading={saving} />
       </Screen>
     </KeyboardAvoidingView>
   );

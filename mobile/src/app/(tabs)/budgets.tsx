@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
 
-import { Button, Card, Empty, ErrorBanner, Fab, MonthSwitcher, ProgressBar, Screen, Text } from '@/components/ui';
+import { Button, Card, Empty, ErrorBanner, Fab, HeroCard, IconTile, MonthSwitcher, ProgressBar, Screen, Text } from '@/components/ui';
 import { api } from '@/lib/api';
 import { currentMonth, formatMoney, monthLabel, shiftMonth } from '@/lib/format';
 import { space, useTheme } from '@/lib/theme';
@@ -30,23 +30,25 @@ export default function Budgets() {
 
   return (
     <>
-      <Screen refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
+      <Screen title="Budgets" refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
         <MonthSwitcher month={month} onChange={setMonth} />
         {error && <ErrorBanner message={error} onRetry={refetch} />}
 
         {data && data.length > 0 && (
-          <Card style={{ gap: space.sm }}>
-            <Text variant="label">Budgeted this month</Text>
-            <Text variant="title" style={{ fontSize: 24 }}>
-              {formatMoney(totalSpent)} <Text variant="body" color={t.muted}>of {formatMoney(totalLimit)}</Text>
+          <HeroCard style={{ gap: space.sm }}>
+            <Text variant="label" color={t.onHero} style={{ opacity: 0.8 }}>Spent so far</Text>
+            <Text variant="title" color={t.onHero} style={{ fontSize: 36, lineHeight: 42 }}>
+              {formatMoney(totalSpent)} <Text variant="body" color={t.onHero} style={{ opacity: 0.8 }}>of {formatMoney(totalLimit)}</Text>
             </Text>
-            <ProgressBar value={totalSpent} max={totalLimit} color={totalSpent > totalLimit ? t.expense : t.accent} />
-            <Text variant="caption">
+            <View style={{ height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
+              <View style={{ width: `${Math.min(totalLimit ? (totalSpent / totalLimit) * 100 : 0, 100)}%`, height: '100%', backgroundColor: totalSpent > totalLimit ? '#FFB4A2' : '#FFFFFF' }} />
+            </View>
+            <Text variant="caption" color={t.onHero} style={{ opacity: 0.9 }}>
               {totalSpent <= totalLimit
                 ? `${formatMoney(totalLimit - totalSpent)} left`
                 : `${formatMoney(totalSpent - totalLimit)} over budget`}
             </Text>
-          </Card>
+          </HeroCard>
         )}
 
         {data?.length === 0 && (
@@ -62,12 +64,13 @@ export default function Budgets() {
           return (
             <Pressable
               key={b.id}
+              accessibilityRole="button"
               onPress={() => router.push({ pathname: '/budget-form', params: { month, category_id: b.category_id, id: b.id, limit: b.limit_cents } })}>
               <Card style={{ gap: space.sm }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: b.category_color }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                  <IconTile color={b.category_color} label={b.category_name} size={38} />
                   <Text variant="heading" style={{ flex: 1 }}>{b.category_name}</Text>
-                  <Text variant="caption">{Math.round(pct * 100)}%</Text>
+                  <Text variant="amount" color={pct > 1 ? t.expense : t.text} style={{ fontSize: 15 }}>{Math.round(pct * 100)}%</Text>
                 </View>
                 <ProgressBar value={b.spent_cents} max={b.limit_cents} color={barColor} />
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

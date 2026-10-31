@@ -3,12 +3,17 @@ import { Platform } from 'react-native';
 
 /**
  * Where the FastAPI backend lives.
- * 1. EXPO_PUBLIC_API_URL if set (see .env.example)
+ * 1. EXPO_PUBLIC_API_URL if set (see .env.*.example). Required, and HTTPS-only, in production builds.
  * 2. Otherwise: same machine that runs the Expo dev server, port 8000.
  *    This makes a physical phone on the same Wi-Fi work without config.
  */
 function resolveBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
+  if (!__DEV__) {
+    // Production bundle: never guess a host, and never use plain HTTP.
+    if (!fromEnv) throw new Error('EXPO_PUBLIC_API_URL must be set for production builds');
+    if (!fromEnv.startsWith('https://')) throw new Error('EXPO_PUBLIC_API_URL must use https:// in production');
+  }
   if (fromEnv) return fromEnv.replace(/\/$/, '');
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return `http://${window.location.hostname}:8000`;
