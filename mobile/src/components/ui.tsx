@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentProps, ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -18,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { API_URL } from '@/lib/api';
 import { monthLabel, shiftMonth } from '@/lib/format';
-import { radius, space, useTheme } from '@/lib/theme';
+import { elevation, font, radius, space, useTheme } from '@/lib/theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -26,10 +27,16 @@ export function Screen({
   children,
   refreshControl,
   header,
+  title,
+  inset,
 }: {
   children: ReactNode;
   refreshControl?: React.ReactElement<RefreshControlProps>;
   header?: ReactNode;
+  /** Large page title shown at the top of tab screens. */
+  title?: string;
+  /** Pad for the status bar on tab screens that have no native header. */
+  inset?: boolean;
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -39,13 +46,15 @@ export function Screen({
       <ScrollView
         refreshControl={refreshControl}
         contentContainerStyle={{
-          padding: space.lg,
-          paddingBottom: insets.bottom + 96,
-          gap: space.lg,
+          paddingHorizontal: space.xl,
+          paddingTop: title || inset ? insets.top + space.lg : space.lg,
+          paddingBottom: insets.bottom + 120,
+          gap: space.xl,
           width: '100%',
           maxWidth: 720,
           alignSelf: 'center',
         }}>
+        {title && <Text variant="title" style={{ fontSize: 34, lineHeight: 38 }}>{title}</Text>}
         {children}
       </ScrollView>
     </View>
@@ -58,35 +67,67 @@ export function Text({
   color,
   style,
   numberOfLines,
+  adjustsFontSizeToFit,
 }: {
   children: ReactNode;
   variant?: 'title' | 'heading' | 'body' | 'label' | 'caption' | 'amount';
   color?: string;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
+  adjustsFontSizeToFit?: boolean;
 }) {
   const t = useTheme();
   return (
-    <RNText numberOfLines={numberOfLines} style={[textStyles[variant], { color: color ?? (variant === 'caption' || variant === 'label' ? t.muted : t.text) }, style]}>
+    <RNText numberOfLines={numberOfLines} adjustsFontSizeToFit={adjustsFontSizeToFit} style={[textStyles[variant], { color: color ?? (variant === 'caption' || variant === 'label' ? t.muted : t.text) }, style]}>
       {children}
     </RNText>
   );
 }
 
 const textStyles = StyleSheet.create({
-  title: { fontSize: 30, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
-  heading: { fontSize: 17, fontWeight: '600' },
-  body: { fontSize: 15 },
-  label: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
-  caption: { fontSize: 13 },
-  amount: { fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  title: { fontFamily: font.displayHeavy, fontSize: 30, letterSpacing: -0.8 },
+  heading: { fontFamily: font.display, fontSize: 18, letterSpacing: -0.2 },
+  body: { fontFamily: font.body, fontSize: 15, lineHeight: 21 },
+  label: { fontFamily: font.medium, fontSize: 13 },
+  caption: { fontFamily: font.body, fontSize: 13, lineHeight: 18 },
+  amount: { fontFamily: font.displaySemi, fontSize: 16, fontVariant: ['tabular-nums'] },
 });
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const t = useTheme();
   return (
-    <View style={[{ backgroundColor: t.card, borderRadius: radius.lg, padding: space.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: t.border }, style]}>
+    <View style={[{ backgroundColor: t.card, borderRadius: radius.card, padding: space.lg, borderWidth: 1, borderColor: t.border }, elevation(t.shadow, 0.6), style]}>
       {children}
+    </View>
+  );
+}
+
+/** Gradient hero panel: one per screen, carries the headline number. */
+export function HeroCard({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const t = useTheme();
+  return (
+    <LinearGradient
+      colors={t.hero}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[{ borderRadius: 32, padding: space.xl, gap: space.lg, overflow: 'hidden' }, elevation(t.shadow, 1.6), style]}>
+      {/* decorative rings */}
+      <View pointerEvents="none" style={{ position: 'absolute', right: -60, top: -60, width: 190, height: 190, borderRadius: 95, backgroundColor: '#FFFFFF', opacity: 0.1 }} />
+      <View pointerEvents="none" style={{ position: 'absolute', right: 30, bottom: -80, width: 150, height: 150, borderRadius: 75, backgroundColor: '#FFFFFF', opacity: 0.07 }} />
+      {children}
+    </LinearGradient>
+  );
+}
+
+/** Rounded square with a tinted background and a coloured icon (or initial). */
+export function IconTile({ icon, color, size = 44, label }: { icon?: string; color: string; size?: number; label?: string }) {
+  return (
+    <View style={{ width: size, height: size, borderRadius: size * 0.36, backgroundColor: color + '24', alignItems: 'center', justifyContent: 'center' }}>
+      {icon ? (
+        <Ionicons name={icon as IconName} size={size * 0.5} color={color} />
+      ) : (
+        <RNText style={{ color, fontFamily: font.displayHeavy, fontSize: size * 0.42 }}>{(label ?? '?').charAt(0).toUpperCase()}</RNText>
+      )}
     </View>
   );
 }
@@ -108,26 +149,26 @@ export function Button({
 }) {
   const t = useTheme();
   const bg = variant === 'primary' ? t.accent : variant === 'danger' ? 'transparent' : t.accentSoft;
-  const fg = variant === 'primary' ? t.card : variant === 'danger' ? t.expense : t.accent;
+  const fg = variant === 'primary' ? t.onAccent : variant === 'danger' ? t.expense : t.accent;
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
       style={({ pressed }) => ({
         backgroundColor: bg,
-        borderRadius: radius.md,
-        paddingVertical: 14,
+        borderRadius: radius.control,
+        paddingVertical: 15,
         paddingHorizontal: space.lg,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         gap: space.sm,
-        opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+        opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
         borderWidth: variant === 'danger' ? 1 : 0,
         borderColor: t.expense,
       })}>
       {loading ? <ActivityIndicator color={fg} /> : icon ? <Ionicons name={icon} size={18} color={fg} /> : null}
-      <RNText style={{ color: fg, fontWeight: '600', fontSize: 15 }}>{title}</RNText>
+      <RNText style={{ color: fg, fontFamily: font.semi, fontSize: 15 }}>{title}</RNText>
     </Pressable>
   );
 }
@@ -150,11 +191,12 @@ export function Input(props: TextInputProps) {
       style={[
         {
           backgroundColor: t.card,
-          borderRadius: radius.md,
+          borderRadius: radius.control,
           borderWidth: 1,
           borderColor: t.border,
           paddingHorizontal: space.md,
-          paddingVertical: 12,
+          paddingVertical: 13,
+          fontFamily: font.body,
           fontSize: 16,
           color: t.text,
         },
@@ -175,21 +217,23 @@ export function Segmented<T extends string>({
 }) {
   const t = useTheme();
   return (
-    <View style={{ flexDirection: 'row', backgroundColor: t.track, borderRadius: radius.md, padding: 3 }}>
+    <View style={{ flexDirection: 'row', backgroundColor: t.track, borderRadius: radius.control, padding: 4 }}>
       {options.map((o) => {
         const active = o.value === value;
         return (
           <Pressable
             key={o.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
             onPress={() => onChange(o.value)}
             style={{
               flex: 1,
-              paddingVertical: 9,
-              borderRadius: radius.md - 3,
+              paddingVertical: 10,
+              borderRadius: radius.control - 4,
               alignItems: 'center',
               backgroundColor: active ? t.card : 'transparent',
             }}>
-            <RNText style={{ fontWeight: '600', color: active ? (o.color ?? t.text) : t.muted }}>{o.label}</RNText>
+            <RNText style={{ fontFamily: active ? font.semi : font.medium, color: active ? (o.color ?? t.text) : t.muted }}>{o.label}</RNText>
           </Pressable>
         );
       })}
@@ -221,15 +265,15 @@ export function ChipPicker<T extends string | number>({
               flexDirection: 'row',
               alignItems: 'center',
               gap: 6,
-              paddingVertical: 8,
+              paddingVertical: 9,
               paddingHorizontal: 12,
-              borderRadius: 999,
+              borderRadius: radius.chip,
               borderWidth: 1,
               borderColor: active ? c : t.border,
-              backgroundColor: active ? c + '22' : t.card,
+              backgroundColor: active ? c + '22' : 'transparent',
             }}>
             {o.icon && <Ionicons name={o.icon} size={14} color={active ? c : t.muted} />}
-            <RNText style={{ color: active ? c : t.text, fontWeight: active ? '600' : '400' }}>{o.label}</RNText>
+            <RNText style={{ color: active ? c : t.text, fontFamily: active ? font.semi : font.body }}>{o.label}</RNText>
           </Pressable>
         );
       })}
@@ -242,7 +286,7 @@ export function ProgressBar({ value, max, color }: { value: number; max: number;
   const pct = max > 0 ? Math.min(value / max, 1) : 0;
   return (
     <View style={{ height: 8, borderRadius: 4, backgroundColor: t.track, overflow: 'hidden' }}>
-      <View style={{ width: `${pct * 100}%`, height: '100%', borderRadius: 4, backgroundColor: color }} />
+      <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: color }} />
     </View>
   );
 }
@@ -250,14 +294,18 @@ export function ProgressBar({ value, max, color }: { value: number; max: number;
 export function MonthSwitcher({ month, onChange }: { month: string; onChange: (m: string) => void }) {
   const t = useTheme();
   const arrow = (dir: -1 | 1) => (
-    <Pressable hitSlop={12} onPress={() => onChange(shiftMonth(month, dir))} style={{ padding: 6 }}>
-      <Ionicons name={dir < 0 ? 'chevron-back' : 'chevron-forward'} size={20} color={t.text} />
+    <Pressable
+      hitSlop={10}
+      accessibilityLabel={dir < 0 ? 'Previous month' : 'Next month'}
+      onPress={() => onChange(shiftMonth(month, dir))}
+      style={{ width: 36, height: 36, borderRadius: radius.control, borderWidth: 1, borderColor: t.border, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={dir < 0 ? 'chevron-back' : 'chevron-forward'} size={18} color={t.text} />
     </Pressable>
   );
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+      <Text variant="heading" style={{ flex: 1 }}>{monthLabel(month)}</Text>
       {arrow(-1)}
-      <Text variant="heading">{monthLabel(month)}</Text>
       {arrow(1)}
     </View>
   );
@@ -266,10 +314,10 @@ export function MonthSwitcher({ month, onChange }: { month: string; onChange: (m
 export function Empty({ icon, title, hint }: { icon: IconName; title: string; hint?: string }) {
   const t = useTheme();
   return (
-    <View style={{ alignItems: 'center', paddingVertical: space.xl, gap: space.sm }}>
-      <Ionicons name={icon} size={36} color={t.muted} />
+    <View style={{ paddingVertical: space.lg, gap: space.xs }}>
+      <Ionicons name={icon} size={22} color={t.accent} style={{ marginBottom: space.xs }} />
       <Text variant="heading">{title}</Text>
-      {hint && <Text variant="caption" style={{ textAlign: 'center' }}>{hint}</Text>}
+      {hint && <Text variant="caption">{hint}</Text>}
     </View>
   );
 }
@@ -293,25 +341,22 @@ export function Fab({ onPress, icon = 'add' }: { onPress: () => void; icon?: Ico
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       accessibilityLabel="Add"
       style={({ pressed }) => ({
         position: 'absolute',
         right: space.xl,
         bottom: insets.bottom + space.xl,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        width: 60,
+        height: 60,
+        borderRadius: radius.fab,
         backgroundColor: t.accent,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: pressed ? 0.85 : 1,
-        shadowColor: '#000',
-        shadowOpacity: 0.18,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 5,
+        ...elevation(t.accent, 2.5),
       })}>
-      <Ionicons name={icon} size={28} color={t.card} />
+      <Ionicons name={icon} size={30} color={t.onAccent} />
     </Pressable>
   );
 }

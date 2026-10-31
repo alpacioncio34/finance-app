@@ -2,11 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
 import type { IconName } from '@/components/ui';
-import { useTheme } from '@/lib/theme';
+import { font, useTheme } from '@/lib/theme';
 
 const tabs: { name: string; title: string; icon: IconName }[] = [
   { name: 'index', title: 'Overview', icon: 'pie-chart' },
-  { name: 'transactions', title: 'Transactions', icon: 'swap-vertical' },
+  { name: 'transactions', title: 'Activity', icon: 'swap-vertical' },
   { name: 'budgets', title: 'Budgets', icon: 'speedometer' },
   { name: 'accounts', title: 'Accounts', icon: 'wallet' },
 ];
@@ -16,12 +16,11 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
         tabBarActiveTintColor: t.accent,
         tabBarInactiveTintColor: t.muted,
-        tabBarStyle: { backgroundColor: t.card, borderTopColor: t.border },
-        headerStyle: { backgroundColor: t.bg },
-        headerShadowVisible: false,
-        headerTitleStyle: { fontWeight: '700' },
+        tabBarStyle: { backgroundColor: t.card, borderTopColor: t.border, height: 68, paddingTop: 6 },
+        tabBarLabelStyle: { fontFamily: font.medium, fontSize: 11 },
       }}>
       {tabs.map((tab) => (
         <Tabs.Screen

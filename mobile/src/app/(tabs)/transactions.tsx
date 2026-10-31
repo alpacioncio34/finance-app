@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { RefreshControl, View } from 'react-native';
 
 import { TransactionRow } from '@/components/TransactionRow';
-import { Card, Empty, ErrorBanner, Fab, MonthSwitcher, Screen, Segmented, Text } from '@/components/ui';
+import { Empty, ErrorBanner, Fab, MonthSwitcher, Screen, Segmented, Text } from '@/components/ui';
 import { api, type Transaction, type TxKind } from '@/lib/api';
 import { currentMonth, dayLabel, formatMoney } from '@/lib/format';
 import { useLookups } from '@/lib/lookups';
@@ -28,39 +28,37 @@ export default function Transactions() {
 
   return (
     <>
-      <Screen refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
+      <Screen title="Activity" refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
         <MonthSwitcher month={month} onChange={setMonth} />
         <Segmented<Filter>
           value={filter}
           onChange={setFilter}
           options={[
             { value: 'all', label: 'All' },
-            { value: 'expense', label: 'Expenses', color: t.expense },
+            { value: 'expense', label: 'Spent', color: t.expense },
             { value: 'income', label: 'Income', color: t.income },
           ]}
         />
         {error && <ErrorBanner message={error} onRetry={refetch} />}
-        {data?.length === 0 && <Empty icon="receipt-outline" title="No transactions" hint="Tap + to add one for this month." />}
+        {data?.length === 0 && <Empty icon="receipt-outline" title="No transactions this month" hint="Tap + to add one." />}
 
         {[...groups.entries()].map(([day, txs]) => {
           const dayTotal = txs.reduce((s, x) => s + (x.kind === 'income' ? x.amount_cents : -x.amount_cents), 0);
           return (
-            <View key={day} style={{ gap: space.xs }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: space.xs }}>
-                <Text variant="label">{dayLabel(day)}</Text>
+            <View key={day}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: space.xs, borderBottomWidth: 1, borderBottomColor: t.border }}>
+                <Text variant="heading" style={{ fontSize: 15 }}>{dayLabel(day)}</Text>
                 <Text variant="caption">{formatMoney(dayTotal, 'EUR', { signed: true })}</Text>
               </View>
-              <Card style={{ paddingVertical: space.sm }}>
-                {txs.map((tx) => (
-                  <TransactionRow
-                    key={tx.id}
-                    tx={tx}
-                    account={accountById.get(tx.account_id)}
-                    category={tx.category_id ? categoryById.get(tx.category_id) : undefined}
-                    onPress={() => router.push({ pathname: '/transaction-form', params: { id: tx.id } })}
-                  />
-                ))}
-              </Card>
+              {txs.map((tx) => (
+                <TransactionRow
+                  key={tx.id}
+                  tx={tx}
+                  account={accountById.get(tx.account_id)}
+                  category={tx.category_id ? categoryById.get(tx.category_id) : undefined}
+                  onPress={() => router.push({ pathname: '/transaction-form', params: { id: tx.id } })}
+                />
+              ))}
             </View>
           );
         })}
