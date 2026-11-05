@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from app.db import engine, init_db
-from app.routers import accounts, budgets, categories, dashboard, transactions
+from app.routers import accounts, auth, budgets, categories, dashboard, transactions
 from app.seed import seed_categories
 
 
@@ -27,7 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (accounts, categories, transactions, budgets, dashboard):
+for r in (auth, accounts, categories, transactions, budgets, dashboard):
     app.include_router(r.router)
 
 

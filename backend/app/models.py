@@ -3,10 +3,12 @@
 Money is always stored as integer cents to avoid floating-point rounding errors.
 """
 
+import re
 from datetime import date as Date
 from datetime import datetime, timezone
 from enum import Enum
 
+from pydantic import field_validator
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
@@ -26,9 +28,43 @@ class TxKind(str, Enum):
     income = "income"
     expense = "expense"
 
-class login(SQLModel):
+# ---------- Users (who logs in) ----------
+# A User is a person. An Account (below) is a bank account that will belong to a user.
+
+class User(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True, max_length=254)
+    password_hash: str  # argon2 hash, never the password and never sent to the client
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class UserCreate(SQLModel):  # body of POST /auth/register
+    email: str = Field(max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _valid_email(cls, v: str) -> str:
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", v.strip()):
+            raise ValueError("Invalid email address")
+        return v
+
+
+class UserRead(SQLModel):  # response: no password_hash
+    id: int
+    email: str
+
+
+class Login(SQLModel):  # body of POST /auth/login
     email: str
     password: str
+
+
+class Token(SQLModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 # ---------- Accounts ----------
 
 '''
@@ -37,8 +73,6 @@ class login(SQLModel):
 
 class AccountBase(SQLModel):
     name: str = Field(min_length=1, max_length=80)
-    passwordhash: str = Field(min_length=8, max_length=30)
-    email: str = Field()
     type: AccountType = AccountType.checking
     currency: str = Field(default="EUR", min_length=3, max_length=3)
     initial_balance_cents: int = 0
