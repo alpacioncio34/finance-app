@@ -102,3 +102,9 @@ def test_delete_category_uncategorises_transactions(client):
     assert client.delete(f"/categories/{leisure}").status_code == 204
     txs = client.get("/transactions").json()
     assert txs[0]["id"] == tx["id"] and txs[0]["category_id"] is None
+
+def test_account_creation(client):
+    pass
+
+def test_login(client):
+    pass

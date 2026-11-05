@@ -26,7 +26,9 @@ class TxKind(str, Enum):
     income = "income"
     expense = "expense"
 
-
+class login(SQLModel):
+    email: str
+    password: str
 # ---------- Accounts ----------
 
 '''
@@ -35,6 +37,8 @@ class TxKind(str, Enum):
 
 class AccountBase(SQLModel):
     name: str = Field(min_length=1, max_length=80)
+    passwordhash: str = Field(min_length=8, max_length=30)
+    email: str = Field()
     type: AccountType = AccountType.checking
     currency: str = Field(default="EUR", min_length=3, max_length=3)
     initial_balance_cents: int = 0
@@ -46,7 +50,7 @@ class Account(AccountBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)
 
-# The only thin needed is the name, it already gets it by inheriting it from Base, same pattern for all classes
+# Everything needed for creating an account, already in AccountBase
 class AccountCreate(AccountBase):
     pass
 
