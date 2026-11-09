@@ -5,6 +5,7 @@ from app.db import get_session
 from app.models import Budget, BudgetCreate, BudgetRead, BudgetUpdate, Category, TxKind
 from app.services.dates import current_month
 from app.services.money import spending_by_category
+from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 

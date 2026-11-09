@@ -4,9 +4,9 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Account, AccountCreate, AccountRead, AccountUpdate, Transaction
 from app.services.money import account_balance, account_balances
+from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
-
 
 def _to_read(acc: Account, balance_cents: int) -> AccountRead:
     """Table row -> response schema. The balance is computed, never stored, so it's passed in."""

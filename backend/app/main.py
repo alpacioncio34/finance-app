@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from app.db import engine, init_db
-from app.routers import accounts, budgets, categories, dashboard, transactions
+from app.routers import accounts, auth, budgets, categories, dashboard, transactions
 from app.seed import seed_categories
+from app.services.auth import get_current_user
 
 
 @asynccontextmanager
@@ -27,8 +28,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# /auth/register and /auth/login stay public; everything else requires a valid Bearer token.
+app.include_router(auth.router)
 for r in (accounts, categories, transactions, budgets, dashboard):
-    app.include_router(r.router)
+    app.include_router(r.router, dependencies=[Depends(get_current_user)])
 
 
 @app.get("/health")

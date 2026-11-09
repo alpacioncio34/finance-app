@@ -12,6 +12,7 @@ from app.models import (
     TxKind,
 )
 from app.services.dates import month_range
+from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
