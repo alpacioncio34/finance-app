@@ -6,8 +6,9 @@ from app.db import get_session
 from app.models import Category, Transaction, TransactionRead
 from app.services.dates import current_month, shift_month
 from app.services.money import account_balances, month_totals, spending_by_category
+from app.services.auth import get_current_user
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"],dependencie=[get_current_user])
 
 
 class CategorySpend(BaseModel):

@@ -1,29 +1,3 @@
-import pytest
-from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, create_engine
-from sqlmodel.pool import StaticPool
-
-from app.db import get_session
-from app.main import app
-from app.seed import seed_categories
-
-
-@pytest.fixture
-def client():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as s:
-        seed_categories(s)
-
-    def override():
-        with Session(engine) as s:
-            yield s
-
-    app.dependency_overrides[get_session] = override
-    yield TestClient(app)
-    app.dependency_overrides.clear()
-
-
 def cat_id(client, name):
     return next(c["id"] for c in client.get("/categories").json() if c["name"] == name)
 

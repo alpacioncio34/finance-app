@@ -77,3 +77,4 @@ To point it elsewhere, copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_UR
 ## TODOS
 
 1. Suscriptions must renovate monthly
+2. Creating endpoints for seeing your current transactions

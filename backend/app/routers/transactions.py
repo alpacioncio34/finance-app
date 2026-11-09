@@ -12,8 +12,9 @@ from app.models import (
     TxKind,
 )
 from app.services.dates import month_range
+from app.services.auth import get_current_user
 
-router = APIRouter(prefix="/transactions", tags=["transactions"])
+router = APIRouter(prefix="/transactions", tags=["transactions"],dependencies=[get_current_user])
 
 
 def _validate_refs(session: Session, account_id: int | None, category_id: int | None, kind: TxKind | None):

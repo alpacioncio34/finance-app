@@ -28,7 +28,15 @@ def login(data: Login, session: Session = Depends(get_session)):
         raise HTTPException(401, "Invalid email or password")
     return Token(access_token=create_access_token(user))
 
+'''
+    How is authentication managed?
+    When using depends, if the function called does not raise an HTTPException, the value returned by the function will be returned to the route,
+    and get_current_user already manages everything internally: token is present, signature is valid, the token hasnt expired and the user exists.
 
+    IT DOES NOT DO AUTHORIZATION, another thing that it doesn't do is create tokens, managed by create_access_token
+
+    For authentication working details see services/auth.py, there is where all the token's logic is made.
+'''
 @router.get("/me", response_model=UserRead)
 def me(user: User = Depends(get_current_user)):
     return user

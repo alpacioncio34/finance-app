@@ -3,8 +3,9 @@ from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models import Budget, Category, CategoryCreate, CategoryRead, Transaction, TxKind
+from app.services.auth import get_current_user
 
-router = APIRouter(prefix="/categories", tags=["categories"])
+router = APIRouter(prefix="/categories", tags=["categories"],dependencies=[get_current_user])
 
 
 @router.get("", response_model=list[CategoryRead])
