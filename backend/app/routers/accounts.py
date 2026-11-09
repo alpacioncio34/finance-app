@@ -6,7 +6,7 @@ from app.models import Account, AccountCreate, AccountRead, AccountUpdate, Trans
 from app.services.money import account_balance, account_balances
 from app.services.auth import get_current_user
 
-router = APIRouter(prefix="/accounts", tags=["accounts"],dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 def _to_read(acc: Account, balance_cents: int) -> AccountRead:
     """Table row -> response schema. The balance is computed, never stored, so it's passed in."""

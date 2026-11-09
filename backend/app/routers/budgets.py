@@ -7,7 +7,7 @@ from app.services.dates import current_month
 from app.services.money import spending_by_category
 from app.services.auth import get_current_user
 
-router = APIRouter(prefix="/budgets", tags=["budgets"],dependencies=[get_current_user])
+router = APIRouter(prefix="/budgets", tags=["budgets"])
 
 MONTH = r"^\d{4}-(0[1-9]|1[0-2])$"
 
