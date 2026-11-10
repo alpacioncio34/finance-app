@@ -81,6 +81,26 @@ export interface Dashboard {
   recent: Transaction[];
 }
 
+export interface UserCreate {
+  email: string;
+  password: string;
+}
+
+export interface Login {
+  email: string;
+  password: string;
+}
+
+export interface Token {
+  access_token: string;
+  token_type: string;
+}
+
+export interface UserRead {
+  id: number;
+  email: string;
+}
+
 // ---------- Client ----------
 
 export class ApiError extends Error {
@@ -89,6 +109,37 @@ export class ApiError extends Error {
   }
 }
 
+// If we do not use authorization in our headers, every call will return a 401, since now the backend endpoints require a token from the logged in user.
+
+/*
+  ROADMAP FOR AUTH IN FRONTEND:
+
+2. Attach the token to every request. This is the part people forget.
+- In request(), add Authorization: Bearer <token> to the headers.
+- Keep the token in a module-level variable in api.ts, with a setToken() function. Then request() doesn't need React.
+- Note the current headers line is body ? {...} : undefined. You'll have to merge the auth header in there so GET requests get it too.
+
+3. Persist the token. Without this, the user has to log in on every app launch.
+- On iOS and Android, use expo-secure-store. Install it with npx expo install expo-secure-store, as your CLAUDE.md says.
+- On web, SecureStore doesn't work. Fall back to localStorage, with a small wrapper that picks by Platform.OS. Keep that wrapper in src/lib/, not src/app/.
+- Persisting a bank-app token in localStorage is a weaker guarantee, so it's worth knowing about.
+
+4. An auth context (session state). The whole app needs to know whether the user is logged in.
+- Create a provider, for example src/lib/auth.tsx, with token, user, loading, signIn, signUp and signOut.
+- On startup it reads the stored token, calls setToken, then calls /auth/me. If that fails, it clears the token.
+- Expose it with a useAuth() hook.
+
+5. Routing in expo-router. This is how the login screen becomes the entrance point.
+- Wrap the app in your provider in _layout.tsx. Keep returning null while the fonts and the session are loading, to avoid a flash of the login screen.
+- Add a login/register screen. A single screen with a mode toggle works, and Segmented from ui.tsx is a good fit. Put it in a route 
+group such as src/app/(auth)/login.tsx.
+- Guard the routes. Expo Router has <Stack.Protected guard={...}>. Put (tabs) and the three modal forms in a group guarded by "has a session", and 
+the auth screen in a group guarded by "no session". Then logging in or out redirects automatically, with no manual router.replace.
+- Use the form primitives from ui.tsx (Screen, Input, Button) and useTheme() for colours. Validate the email and the password length client-side,
+ to match whatever UserCreate enforces.
+
+ 6. VALIDATION IN FRONTEND: TODO = SEE HOW WE WOULD DO IT
+*/
 async function request<T>(method: string, path: string, body?: unknown, query?: Record<string, unknown>): Promise<T> {
   const qs = query
     ? '?' +
@@ -137,4 +188,9 @@ export const api = {
   copyBudgets: (from_month: string, to_month: string) =>
     request<Budget[]>('POST', '/budgets/copy', undefined, { from_month, to_month }),
   deleteBudget: (id: number) => request<void>('DELETE', `/budgets/${id}`),
-};
+
+  // After a register, we do not have a token, call login with same credentials if succesfull
+  register: (u: UserCreate) => request<UserRead>('POST', '/auth/register',u),
+  login: (l: Login) => request<Token>('POST','/auth/login',l),
+  me: () => request<UserRead>('GET','/auth/me')
+}; 
