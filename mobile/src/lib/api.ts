@@ -150,7 +150,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
     : '';
   const res = await fetch(`${API_URL}${path}${qs}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: body ? { 'Content-Type': 'application/json'} : undefined
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
