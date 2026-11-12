@@ -1,4 +1,4 @@
-import { post, put } from './helpers/ApiRequestsHelper'
+import { post, get } from './helpers/ApiRequestsHelper'
 
 function login (data) {
   return post('auth/login', data)

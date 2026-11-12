@@ -115,9 +115,6 @@ export class ApiError extends Error {
   ROADMAP FOR AUTH IN FRONTEND:
 
 1. Get it compiling again.
-   - Install axios with npx expo install axios.
-   - Fix the missing comma in api.ts.
-   - Fix the import typo and the missing get import in AuthEndpoints.ts.
    - Check what FileUploadHelper.ts actually contains.
 2. Decide the single home for HTTP.
    - My recommendation is one axios instance in src/lib/, next to the existing api.ts and confirm.ts. Keep api.ts as the one place that talks HTTP, but swap fetch for axios inside it.
@@ -169,7 +166,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
     : '';
   const res = await fetch(`${API_URL}${path}${qs}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json'} : undefined
+    headers: body ? { 'Content-Type': 'application/json'} : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
