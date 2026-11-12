@@ -114,6 +114,25 @@ export class ApiError extends Error {
 /*
   ROADMAP FOR AUTH IN FRONTEND:
 
+1. Get it compiling again.
+   - Install axios with npx expo install axios.
+   - Fix the missing comma in api.ts.
+   - Fix the import typo and the missing get import in AuthEndpoints.ts.
+   - Check what FileUploadHelper.ts actually contains.
+2. Decide the single home for HTTP.
+   - My recommendation is one axios instance in src/lib/, next to the existing api.ts and confirm.ts. Keep api.ts as the one place that talks HTTP, but swap fetch for axios inside it.
+   - This leaves the screens untouched, because they already call api.listTransactions() and similar. It also keeps the CLAUDE.md rule meaningful, with only "fetch" changed to "axios".
+   - The alternative is your src/api/ folder with one file per endpoint group. That's more files, and it forces you to rewrite every screen's calls. I'd only choose it if you really prefer that layout. It's your call.
+3. Write one typed request<T>. Use axios.create with the base URL from the existing API_URL logic. This replaces the five copy-pasted functions and the Promise wrapping.
+4. Normalise errors to the backend's real shape. Read detail, handle the 422 list, and keep one ApiError class. Check that no screen relies on the old error messages.
+5. Add the interceptors. The request interceptor attaches the token, and the response interceptor clears the session on a 401. This is auth roadmap step 2. It needs a module-level setToken, so the axios layer doesn't depend on React.
+6. Delete the duplicates and dead code. Remove the second register/login/me, the unused file-upload helper, and the old fetch path. Then run tsc and npx expo export --platform web as the full check.
+7. Continue the auth roadmap. Token persistence, the auth context, and route guards (roadmap steps 3 to 5), then validation (step 6).
+
+
+
+
+
 2. Attach the token to every request. This is the part people forget.
 - In request(), add Authorization: Bearer <token> to the headers.
 - Keep the token in a module-level variable in api.ts, with a setToken() function. Then request() doesn't need React.
