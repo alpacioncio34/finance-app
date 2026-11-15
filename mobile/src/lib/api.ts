@@ -1,5 +1,8 @@
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+
+import { tokenStore } from '@/lib/tokenStore';
 
 /**
  * Where the FastAPI backend lives.
@@ -29,6 +32,9 @@ export const API_URL = resolveBaseUrl();
 
 export type TxKind = 'income' | 'expense';
 export type AccountType = 'checking' | 'savings' | 'cash' | 'credit' | 'investment';
+/** manual = you enter the transactions. bank = read-only copy of a bank account, filled by bank sync. */
+export type AccountSource = 'manual' | 'bank';
+export type ConnectionStatus = 'pending' | 'authorised' | 'linked' | 'expired';
 
 export interface Account {
   id: number;
@@ -37,8 +43,14 @@ export interface Account {
   currency: string;
   initial_balance_cents: number;
   balance_cents: number;
-  external_id: string | null;
+  source: AccountSource;
+  connection_id: number | null;
+  /** Bank accounts only */
+  institution_name: string | null;
+  last_synced_at: string | null;
 }
+
+export type AccountInput = Pick<Account, 'name' | 'type' | 'currency' | 'initial_balance_cents'>;
 
 export interface Category {
   id: number;
@@ -56,9 +68,11 @@ export interface Transaction {
   amount_cents: number;
   date: string; // YYYY-MM-DD
   description: string;
+  /** Set when the bank imported it: only category and description can be edited. */
+  external_id: string | null;
 }
 
-export type TransactionInput = Omit<Transaction, 'id'>;
+export type TransactionInput = Omit<Transaction, 'id' | 'external_id'>;
 
 export interface Budget {
   id: number;
@@ -93,6 +107,7 @@ export interface Login {
 
 export interface Token {
   access_token: string;
+  refresh_token: string;
   token_type: string;
 }
 
@@ -101,92 +116,173 @@ export interface UserRead {
   email: string;
 }
 
+export interface Institution {
+  id: string;
+  name: string;
+  country: string;
+  /** 'sandbox' means a pretend bank with made-up data. */
+  provider: string;
+}
+
+export interface BankConnection {
+  id: number;
+  provider: string;
+  institution_id: string;
+  institution_name: string;
+  status: ConnectionStatus;
+  last_synced_at: string | null;
+  account_count: number;
+}
+
+export interface BankLinkStart {
+  connection: BankConnection;
+  /** Open in a browser so the user can approve access at the bank. */
+  auth_url: string;
+}
+
+export interface BankSyncResult {
+  connection: BankConnection;
+  imported: number;
+}
+
 // ---------- Client ----------
 
+/** Every failed call ends up as one of these. `status` is 0 when the server could not be reached. */
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
 }
 
-// If we do not use authorization in our headers, every call will return a 401, since now the backend endpoints require a token from the logged in user.
+const http = axios.create({ baseURL: API_URL, timeout: 15000 });
 
 /*
-  ROADMAP FOR AUTH IN FRONTEND:
-
-1. Get it compiling again.
-   - Check what FileUploadHelper.ts actually contains.
-2. Decide the single home for HTTP.
-   - My recommendation is one axios instance in src/lib/, next to the existing api.ts and confirm.ts. Keep api.ts as the one place that talks HTTP, but swap fetch for axios inside it.
-   - This leaves the screens untouched, because they already call api.listTransactions() and similar. It also keeps the CLAUDE.md rule meaningful, with only "fetch" changed to "axios".
-   - The alternative is your src/api/ folder with one file per endpoint group. That's more files, and it forces you to rewrite every screen's calls. I'd only choose it if you really prefer that layout. It's your call.
-3. Write one typed request<T>. Use axios.create with the base URL from the existing API_URL logic. This replaces the five copy-pasted functions and the Promise wrapping.
-4. Normalise errors to the backend's real shape. Read detail, handle the 422 list, and keep one ApiError class. Check that no screen relies on the old error messages.
-5. Add the interceptors. The request interceptor attaches the token, and the response interceptor clears the session on a 401. This is auth roadmap step 2. It needs a module-level setToken, so the axios layer doesn't depend on React.
-6. Delete the duplicates and dead code. Remove the second register/login/me, the unused file-upload helper, and the old fetch path. Then run tsc and npx expo export --platform web as the full check.
-7. Continue the auth roadmap. Token persistence, the auth context, and route guards (roadmap steps 3 to 5), then validation (step 6).
-
-
-
-
-
-2. Attach the token to every request. This is the part people forget.
-- In request(), add Authorization: Bearer <token> to the headers.
-- Keep the token in a module-level variable in api.ts, with a setToken() function. Then request() doesn't need React.
-- Note the current headers line is body ? {...} : undefined. You'll have to merge the auth header in there so GET requests get it too.
-
-3. Persist the token. Without this, the user has to log in on every app launch.
-- On iOS and Android, use expo-secure-store. Install it with npx expo install expo-secure-store, as your CLAUDE.md says.
-- On web, SecureStore doesn't work. Fall back to localStorage, with a small wrapper that picks by Platform.OS. Keep that wrapper in src/lib/, not src/app/.
-- Persisting a bank-app token in localStorage is a weaker guarantee, so it's worth knowing about.
-
-4. An auth context (session state). The whole app needs to know whether the user is logged in.
-- Create a provider, for example src/lib/auth.tsx, with token, user, loading, signIn, signUp and signOut.
-- On startup it reads the stored token, calls setToken, then calls /auth/me. If that fails, it clears the token.
-- Expose it with a useAuth() hook.
-
-5. Routing in expo-router. This is how the login screen becomes the entrance point.
-- Wrap the app in your provider in _layout.tsx. Keep returning null while the fonts and the session are loading, to avoid a flash of the login screen.
-- Add a login/register screen. A single screen with a mode toggle works, and Segmented from ui.tsx is a good fit. Put it in a route 
-group such as src/app/(auth)/login.tsx.
-- Guard the routes. Expo Router has <Stack.Protected guard={...}>. Put (tabs) and the three modal forms in a group guarded by "has a session", and 
-the auth screen in a group guarded by "no session". Then logging in or out redirects automatically, with no manual router.replace.
-- Use the form primitives from ui.tsx (Screen, Input, Button) and useTheme() for colours. Validate the email and the password length client-side,
- to match whatever UserCreate enforces.
-
- 6. VALIDATION IN FRONTEND: TODO = SEE HOW WE WOULD DO IT
+  How the session works:
+  - Logging in returns an access token (lives minutes) and a refresh token (lives days).
+  - The access token is kept in memory only and sent as "Authorization: Bearer ..." on every request.
+  - The refresh token is kept in tokenStore (Keychain / Keystore on phones).
+  - When a request comes back 401, the refresh token is swapped for a new pair and the request is retried once.
+  - If that swap is refused, the session is over: the handler below tells the auth context to show the sign-in screen.
 */
-async function request<T>(method: string, path: string, body?: unknown, query?: Record<string, unknown>): Promise<T> {
-  const qs = query
-    ? '?' +
-      Object.entries(query)
-        .filter(([, v]) => v !== undefined && v !== null && v !== '')
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-        .join('&')
-    : '';
-  const res = await fetch(`${API_URL}${path}${qs}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json'} : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    let msg = `${res.status} ${res.statusText}`;
+let accessToken: string | null = null;
+let signedOutHandler: (() => void) | null = null;
+
+export function setSignedOutHandler(fn: (() => void) | null) {
+  signedOutHandler = fn;
+}
+
+async function startSession(tokens: Token) {
+  accessToken = tokens.access_token;
+  await tokenStore.save(tokens.refresh_token);
+}
+
+async function endSession() {
+  accessToken = null;
+  await tokenStore.clear();
+}
+
+type RefreshResult = 'ok' | 'invalid' | 'offline';
+let refreshing: Promise<RefreshResult> | null = null;
+
+/**
+ * Swap the stored refresh token for a new pair. A refresh token works only once, so concurrent
+ * callers must share one request: a second request with the same token would look like theft
+ * to the API and sign the user out everywhere.
+ */
+function refreshSession(): Promise<RefreshResult> {
+  refreshing ??= (async (): Promise<RefreshResult> => {
+    // Read from storage every time: on web another tab may have refreshed since.
+    const stored = await tokenStore.load();
+    if (!stored) return 'invalid';
     try {
-      const data = await res.json();
-      if (typeof data.detail === 'string') msg = data.detail;
-      else if (Array.isArray(data.detail)) msg = data.detail.map((d: { msg: string }) => d.msg).join(', ');
-    } catch {}
-    throw new ApiError(res.status, msg);
+      // Plain axios, not `http`, so the interceptors below don't run for this call
+      const res = await axios.post<Token>(`${API_URL}/auth/refresh`, { refresh_token: stored }, { timeout: 15000 });
+      await startSession(res.data);
+      return 'ok';
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 401) {
+        await endSession();
+        return 'invalid';
+      }
+      return 'offline';
+    }
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+http.interceptors.request.use((config) => {
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+  return config;
+});
+
+http.interceptors.response.use(undefined, async (error: AxiosError) => {
+  const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+  // A 401 from login / register / refresh means "wrong credentials", not "session expired"
+  const isCredentialCall = !!original?.url && /^\/auth\/(login|register|refresh|logout)/.test(original.url);
+  if (error.response?.status === 401 && original && !original._retried && !isCredentialCall) {
+    original._retried = true;
+    const result = await refreshSession();
+    if (result === 'ok') return http.request(original);
+    if (result === 'invalid') signedOutHandler?.();
   }
-  return res.status === 204 ? (undefined as T) : res.json();
+  throw error;
+});
+
+/** Turn anything axios throws into an ApiError with the backend's own message. */
+function toApiError(e: unknown): ApiError {
+  if (!axios.isAxiosError(e)) return new ApiError(0, e instanceof Error ? e.message : String(e));
+  if (!e.response) return new ApiError(0, `Can't reach the server at ${API_URL}. Is the backend running?`);
+  const detail = (e.response.data as { detail?: unknown } | undefined)?.detail;
+  let message = `${e.response.status} ${e.response.statusText}`.trim();
+  if (typeof detail === 'string') message = detail;
+  // FastAPI validation errors (422) come as a list of { msg }
+  else if (Array.isArray(detail)) message = detail.map((d: { msg?: string }) => d.msg ?? '').filter(Boolean).join(', ');
+  return new ApiError(e.response.status, message);
+}
+
+async function request<T>(method: string, path: string, body?: unknown, query?: Record<string, unknown>): Promise<T> {
+  const params = query
+    ? Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+    : undefined;
+  try {
+    const res = await http.request<T>({ method, url: path, data: body, params });
+    return res.status === 204 ? (undefined as T) : res.data;
+  } catch (e) {
+    throw toApiError(e);
+  }
 }
 
 export const api = {
+  // ----- Session -----
+  async signIn(l: Login): Promise<UserRead> {
+    await startSession(await request<Token>('POST', '/auth/login', l));
+    return request<UserRead>('GET', '/auth/me');
+  },
+  // Registering does not log in, so sign in with the same credentials straight after
+  async signUp(u: UserCreate): Promise<UserRead> {
+    await request<UserRead>('POST', '/auth/register', u);
+    return api.signIn(u);
+  },
+  async signOut(): Promise<void> {
+    const stored = await tokenStore.load();
+    // Best effort: the local session ends even if the server can't be reached
+    if (stored) await request<void>('POST', '/auth/logout', { refresh_token: stored }).catch(() => {});
+    await endSession();
+  },
+  /** On app start: the logged-in user if a stored session is still valid, else null. */
+  async restoreSession(): Promise<UserRead | null> {
+    if ((await refreshSession()) !== 'ok') return null;
+    return request<UserRead>('GET', '/auth/me').catch(() => null);
+  },
+
   dashboard: (month: string) => request<Dashboard>('GET', '/dashboard', undefined, { month }),
 
   accounts: () => request<Account[]>('GET', '/accounts'),
-  createAccount: (a: Pick<Account, 'name' | 'type' | 'currency' | 'initial_balance_cents'>) =>
-    request<Account>('POST', '/accounts', a),
+  account: (id: number) => request<Account>('GET', `/accounts/${id}`),
+  createAccount: (a: AccountInput) => request<Account>('POST', '/accounts', a),
+  updateAccount: (id: number, a: Partial<AccountInput>) => request<Account>('PATCH', `/accounts/${id}`, a),
   deleteAccount: (id: number) => request<void>('DELETE', `/accounts/${id}`),
 
   categories: (kind?: TxKind) => request<Category[]>('GET', '/categories', undefined, { kind }),
@@ -205,8 +301,16 @@ export const api = {
     request<Budget[]>('POST', '/budgets/copy', undefined, { from_month, to_month }),
   deleteBudget: (id: number) => request<void>('DELETE', `/budgets/${id}`),
 
-  // After a register, we do not have a token, call login with same credentials if succesfull
-  register: (u: UserCreate) => request<UserRead>('POST', '/auth/register',u),
-  login: (l: Login) => request<Token>('POST','/auth/login',l),
-  me: () => request<UserRead>('GET','/auth/me')
-}; 
+  // ----- Bank connections (read-only) -----
+  institutions: (country?: string) => request<Institution[]>('GET', '/bank/institutions', undefined, { country }),
+  bankConnections: () => request<BankConnection[]>('GET', '/bank/connections'),
+  /** Step 1: returns the URL where the user approves access at the bank. */
+  startBankConnection: (institution_id: string, redirect_url: string) =>
+    request<BankLinkStart>('POST', '/bank/connections', { institution_id, redirect_url }),
+  /** Step 2, after the user comes back from the bank: imports accounts and recent transactions. */
+  completeBankConnection: (id: number) => request<BankSyncResult>('POST', `/bank/connections/${id}/complete`),
+  syncBankConnection: (id: number) => request<BankSyncResult>('POST', `/bank/connections/${id}/sync`),
+  /** Keeps the accounts as manual ones unless `deleteAccounts` is true. */
+  disconnectBank: (id: number, deleteAccounts = false) =>
+    request<void>('DELETE', `/bank/connections/${id}`, undefined, { delete_accounts: deleteAccounts || undefined }),
+};

@@ -2,23 +2,27 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Budget, Category, CategoryCreate, CategoryRead, Transaction, TxKind
-from app.services.auth import get_current_user
+from app.models import Budget, Category, CategoryCreate, CategoryRead, Transaction, TxKind, User
+from app.services.auth import get_current_user, get_owned
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
 
 @router.get("", response_model=list[CategoryRead])
-def list_categories(kind: TxKind | None = None, session: Session = Depends(get_session)):
-    q = select(Category).order_by(Category.name)
+def list_categories(
+    kind: TxKind | None = None,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    q = select(Category).where(Category.user_id == user.id).order_by(Category.name)
     if kind:
         q = q.where(Category.kind == kind)
     return session.exec(q).all()
 
 
 @router.post("", response_model=CategoryRead, status_code=201)
-def create_category(data: CategoryCreate, session: Session = Depends(get_session)):
-    cat = Category.model_validate(data)
+def create_category(data: CategoryCreate, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    cat = Category(**data.model_dump(), user_id=user.id)
     session.add(cat)
     session.commit()
     session.refresh(cat)
@@ -26,8 +30,8 @@ def create_category(data: CategoryCreate, session: Session = Depends(get_session
 
 
 @router.delete("/{category_id}", status_code=204)
-def delete_category(category_id: int, session: Session = Depends(get_session)):
-    cat = session.get(Category, category_id)
+def delete_category(category_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    cat = get_owned(session, Category, category_id, user)
     if not cat:
         raise HTTPException(404, "Category not found")
     # Keep transactions, just uncategorise them; drop budgets for this category

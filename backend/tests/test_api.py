@@ -77,8 +77,17 @@ def test_delete_category_uncategorises_transactions(client):
     txs = client.get("/transactions").json()
     assert txs[0]["id"] == tx["id"] and txs[0]["category_id"] is None
 
-def test_account_creation(client):
-    pass
 
-def test_login(client):
-    pass
+def test_account_creation(client):
+    acc = client.post("/accounts", json={"name": "Wallet", "type": "cash", "initial_balance_cents": 2500}).json()
+    assert acc["source"] == "manual" and acc["connection_id"] is None
+    assert acc["balance_cents"] == 2500
+    assert [a["name"] for a in client.get("/accounts").json()] == ["Wallet"]
+
+
+def test_account_create_cannot_set_server_fields(client):
+    """source, external_id and user_id are decided by the server, whatever the body says."""
+    acc = client.post("/accounts", json={"name": "Sneaky", "source": "bank", "external_id": "x", "user_id": 999}).json()
+    assert acc["source"] == "manual"
+    assert "external_id" not in acc and "user_id" not in acc
+    assert client.get(f"/accounts/{acc['id']}").status_code == 200

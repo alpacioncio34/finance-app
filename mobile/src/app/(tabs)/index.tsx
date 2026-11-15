@@ -1,99 +1,109 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, View } from 'react-native';
 
 import { CategoryBreakdown, TrendChart } from '@/components/charts';
 import { TransactionRow } from '@/components/TransactionRow';
-import { Card, ErrorBanner, Fab, HeroCard, MonthSwitcher, Screen, Text, type IconName } from '@/components/ui';
+import { Button, Card, Empty, ErrorBanner, Fab, IconButton, MonthSwitcher, Panel, PanelBar, RowGroup, Screen, Section, Text } from '@/components/ui';
 import { api } from '@/lib/api';
-import { currentMonth, formatMoney } from '@/lib/format';
+import { currentMonth, formatMoney, monthLabel } from '@/lib/format';
 import { useLookups } from '@/lib/lookups';
-import { font, space, useTheme } from '@/lib/theme';
+import { space, useTheme } from '@/lib/theme';
 import { useQuery } from '@/lib/useQuery';
 
 export default function Overview() {
   const t = useTheme();
   const [month, setMonth] = useState(currentMonth());
   const { data, error, loading, refetch } = useQuery(() => api.dashboard(month), [month]);
-  const { accountById, categoryById } = useLookups();
+  const { accounts, accountById, categoryById, loading: lookupsLoading } = useLookups();
 
-  const net = data?.net_cents ?? 0;
+  const income = data?.income_cents ?? 0;
+  const spent = data?.expense_cents ?? 0;
+  const net = income - spent;
+  const noAccounts = !lookupsLoading && accounts.length === 0;
 
   return (
     <>
-      <Screen inset refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
+      <Screen
+        title="Overview"
+        action={<IconButton icon="person-outline" label="Settings" onPress={() => router.push('/settings')} />}
+        refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
         {error && <ErrorBanner message={error} onRetry={refetch} />}
 
-        <MonthSwitcher month={month} onChange={setMonth} />
+        {noAccounts ? (
+          <Empty icon="wallet-outline" title="Start with an account" hint="Connect a bank to bring in your balances and transactions, or add an account and enter them yourself.">
+            <Button title="Connect a bank" variant="bank" icon="link" onPress={() => router.push('/connect-bank')} />
+            <Button title="Add an account by hand" variant="secondary" icon="create-outline" onPress={() => router.push('/account-form')} />
+          </Empty>
+        ) : (
+          <>
+            <Panel>
+              <View>
+                <Text variant="label" color={t.onPanelMuted}>Total balance</Text>
+                <Text variant="display" numberOfLines={1} adjustsFontSizeToFit color={t.onPanel}>
+                  {data ? formatMoney(data.total_balance_cents) : ' '}
+                </Text>
+              </View>
+              <View style={{ gap: space.sm }}>
+                <PanelBar used={spent} total={income} label={`Spent ${formatMoney(spent)} of ${formatMoney(income)} income`} />
+                <Text variant="caption" color={t.onPanelMuted}>
+                  {!data
+                    ? ' '
+                    : income === 0 && spent === 0
+                      ? `Nothing recorded in ${monthLabel(month)}`
+                      : net >= 0
+                        ? `${formatMoney(net)} of this month's income is left`
+                        : `Spent ${formatMoney(-net)} more than came in`}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: space.xl }}>
+                <Stat label="Came in" value={data ? formatMoney(income) : ' '} />
+                <Stat label="Went out" value={data ? formatMoney(spent) : ' '} />
+              </View>
+            </Panel>
 
-        <HeroCard>
-          <View style={{ gap: space.xs }}>
-            <Text variant="label" color={t.onHero} style={{ opacity: 0.8 }}>Total balance</Text>
-            <Text
-              variant="title"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              style={{ fontFamily: font.displayHeavy, fontSize: 52, lineHeight: 58, letterSpacing: -2, fontVariant: ['tabular-nums'] }}
-              color={t.onHero}>
-              {data ? formatMoney(data.total_balance_cents) : '—'}
-            </Text>
-            {data && (
-              <Text variant="caption" color={t.onHero} style={{ opacity: 0.85 }}>
-                {net >= 0 ? `You kept ${formatMoney(net)} this month` : `${formatMoney(-net)} more spent than earned this month`}
-              </Text>
-            )}
-          </View>
-          <View style={{ flexDirection: 'row', gap: space.md }}>
-            <Flow label="Income" icon="arrow-down" value={data?.income_cents} />
-            <Flow label="Spent" icon="arrow-up" value={data?.expense_cents} />
-          </View>
-        </HeroCard>
+            <MonthSwitcher month={month} onChange={setMonth} />
 
-        <Card style={{ gap: space.lg }}>
-          <Text variant="heading">Where it went</Text>
-          {data && <CategoryBreakdown items={data.spending_by_category} total={data.expense_cents} />}
-        </Card>
+            <Section title="Where it went">
+              <Card>{data && <CategoryBreakdown items={data.spending_by_category} total={data.expense_cents} />}</Card>
+            </Section>
 
-        <Card style={{ gap: space.lg }}>
-          <Text variant="heading">Last 6 months</Text>
-          {data && <TrendChart data={data.trend} />}
-        </Card>
+            <Section title="Six months">
+              <Card>{data && <TrendChart data={data.trend} />}</Card>
+            </Section>
 
-        <Card>
-          <Text variant="heading">Recent</Text>
-          {data?.recent.length === 0 && <Text variant="caption" style={{ marginTop: space.sm }}>Nothing yet. Tap + to add your first transaction.</Text>}
-          {data?.recent.map((tx, i) => (
-            <View key={tx.id} style={{ borderTopWidth: i === 0 ? 0 : 1, borderTopColor: t.border }}>
-              <TransactionRow
-                tx={tx}
-                showDate={tx.date.slice(5).split('-').reverse().join('/')}
-                account={accountById.get(tx.account_id)}
-                category={tx.category_id ? categoryById.get(tx.category_id) : undefined}
-                onPress={() => router.push({ pathname: '/transaction-form', params: { id: tx.id } })}
-              />
-            </View>
-          ))}
-        </Card>
+            <Section title="Latest" action={<Button title="See all" variant="ghost" size="small" onPress={() => router.push('/transactions')} />}>
+              {data?.recent.length === 0 ? (
+                <Text variant="caption">Nothing yet. Tap + to add your first transaction.</Text>
+              ) : (
+                <RowGroup>
+                  {data?.recent.map((tx) => (
+                    <TransactionRow
+                      key={tx.id}
+                      tx={tx}
+                      showDate={tx.date.slice(5).split('-').reverse().join('/')}
+                      account={accountById.get(tx.account_id)}
+                      category={tx.category_id ? categoryById.get(tx.category_id) : undefined}
+                      onPress={() => router.push({ pathname: '/transaction-form', params: { id: tx.id } })}
+                    />
+                  ))}
+                </RowGroup>
+              )}
+            </Section>
+          </>
+        )}
       </Screen>
-      <Fab onPress={() => router.push('/transaction-form')} />
+      {!noAccounts && <Fab label="Add transaction" onPress={() => router.push('/transaction-form')} />}
     </>
   );
 }
 
-function Flow({ label, icon, value }: { label: string; icon: IconName; value?: number }) {
+function Stat({ label, value }: { label: string; value: string }) {
   const t = useTheme();
   return (
-    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 20, padding: space.md }}>
-      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon} size={16} color={t.onHero} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text variant="caption" color={t.onHero} style={{ opacity: 0.8 }}>{label}</Text>
-        <Text variant="amount" color={t.onHero} numberOfLines={1}>
-          {value === undefined ? '—' : formatMoney(value, 'EUR', { compact: Math.abs(value) >= 100000 })}
-        </Text>
-      </View>
+    <View style={{ flex: 1 }}>
+      <Text variant="caption" color={t.onPanelMuted}>{label}</Text>
+      <Text variant="amount" color={t.onPanel} numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 18 }}>{value}</Text>
     </View>
   );
 }

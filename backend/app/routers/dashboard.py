@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Category, Transaction, TransactionRead
+from app.models import Category, Transaction, TransactionRead, User
 from app.services.dates import current_month, shift_month
 from app.services.money import account_balances, month_totals, spending_by_category
 from app.services.auth import get_current_user
@@ -40,11 +40,12 @@ def get_dashboard(
     month: str = Query(default_factory=current_month, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
     months_back: int = Query(6, ge=1, le=24),
     session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
-    income, expense = month_totals(session, month)
+    income, expense = month_totals(session, user.id, month)
 
-    by_cat = spending_by_category(session, month)
-    cats = {c.id: c for c in session.exec(select(Category)).all()}
+    by_cat = spending_by_category(session, user.id, month)
+    cats = {c.id: c for c in session.exec(select(Category).where(Category.user_id == user.id)).all()}
     spending = sorted(
         (
             CategorySpend(
@@ -62,16 +63,19 @@ def get_dashboard(
     trend = []
     for i in range(months_back - 1, -1, -1):
         m = shift_month(month, -i)
-        inc, exp = month_totals(session, m)
+        inc, exp = month_totals(session, user.id, m)
         trend.append(MonthTotals(month=m, income_cents=inc, expense_cents=exp))
 
     recent = session.exec(
-        select(Transaction).order_by(Transaction.date.desc(), Transaction.id.desc()).limit(5)
+        select(Transaction)
+        .where(Transaction.user_id == user.id)
+        .order_by(Transaction.date.desc(), Transaction.id.desc())
+        .limit(5)
     ).all()
 
     return Dashboard(
         month=month,
-        total_balance_cents=sum(account_balances(session).values()),
+        total_balance_cents=sum(account_balances(session, user.id).values()),
         income_cents=income,
         expense_cents=expense,
         net_cents=income - expense,
