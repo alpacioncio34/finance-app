@@ -5,6 +5,8 @@ export function formatMoney(cents: number, currency = 'EUR', opts: { signed?: bo
     currency,
     maximumFractionDigits: opts.compact ? 0 : 2,
     minimumFractionDigits: opts.compact ? 0 : 2,
+    // es-ES leaves four-digit numbers ungrouped (1850,00 €). Always group, so amounts line up: 1.850,00 €
+    useGrouping: 'always',
   }).format(Math.abs(value));
   if (cents < 0) return `−${s}`;
   return opts.signed && cents > 0 ? `+${s}` : s;
@@ -63,3 +65,22 @@ export function isValidISODate(s: string): boolean {
   const dt = new Date(y, m - 1, d);
   return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
 }
+
+/** "just now", "5 min ago", "3 h ago", "2 days ago", then the date. For "last synced" labels. */
+export function timeAgo(iso: string, now = Date.now()): string {
+  const minutes = Math.floor((now - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+/** Same rule as the backend's UserCreate, so most mistakes are caught before the request. */
+export function isValidEmail(s: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.trim());
+}
+
+export const MIN_PASSWORD_LENGTH = 8;

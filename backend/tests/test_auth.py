@@ -24,6 +24,12 @@ PROTECTED = [
     ("GET", "/budgets", None),
     ("POST", "/budgets", {"category_id": 1, "month": "2026-10", "limit_cents": 1000}),
     ("GET", "/dashboard", None),
+    ("GET", "/bank/institutions", None),
+    ("GET", "/bank/connections", None),
+    ("POST", "/bank/connections", {"institution_id": "sandbox-norte", "redirect_url": "financeapp://bank-callback"}),
+    ("POST", "/bank/connections/1/complete", None),
+    ("POST", "/bank/connections/1/sync", None),
+    ("DELETE", "/bank/connections/1", None),
 ]
 LIST_ENDPOINTS = ["/accounts", "/categories", "/transactions", "/budgets", "/dashboard", "/auth/me"]
 
@@ -78,6 +84,104 @@ def test_public_routes_need_no_token(anon_client):
     assert anon_client.get("/health").status_code == 200
     assert anon_client.post("/auth/register", json=CREDS).status_code == 201
     assert anon_client.post("/auth/login", json=CREDS).status_code == 200
+
+
+def test_login_is_throttled_after_repeated_failures(anon_client):
+    anon_client.post("/auth/register", json=CREDS)
+    wrong = {**CREDS, "password": "wrong-password"}
+    for _ in range(5):
+        assert anon_client.post("/auth/login", json=wrong).status_code == 401
+    locked = anon_client.post("/auth/login", json=wrong)
+    assert locked.status_code == 429 and int(locked.headers["retry-after"]) > 0
+    # Even the right password has to wait, otherwise guessing could just continue
+    assert anon_client.post("/auth/login", json=CREDS).status_code == 429
+    # Other accounts are not affected
+    other = {"email": "bea@example.com", "password": "another-password"}
+    anon_client.post("/auth/register", json=other)
+    assert anon_client.post("/auth/login", json=other).status_code == 200
+
+
+def test_successful_login_resets_the_failure_count(anon_client):
+    anon_client.post("/auth/register", json=CREDS)
+    wrong = {**CREDS, "password": "wrong-password"}
+    for _ in range(3):
+        for _ in range(4):
+            assert anon_client.post("/auth/login", json=wrong).status_code == 401
+        assert anon_client.post("/auth/login", json=CREDS).status_code == 200
+
+
+def test_startup_refuses_a_weak_secret(monkeypatch):
+    from app.services.auth import check_auth_config
+
+    monkeypatch.setenv("JWT_SECRET", "change-me")
+    with pytest.raises(RuntimeError):
+        check_auth_config()
+    monkeypatch.delenv("JWT_SECRET")
+    with pytest.raises(RuntimeError):
+        check_auth_config()
+
+
+# ---- refresh tokens ----------------------------------------------------------------------------
+
+
+def tokens(client):
+    client.post("/auth/register", json=CREDS)
+    return client.post("/auth/login", json=CREDS).json()
+
+
+def test_refresh_gives_a_working_new_pair(anon_client):
+    first = tokens(anon_client)
+    r = anon_client.post("/auth/refresh", json={"refresh_token": first["refresh_token"]})
+    assert r.status_code == 200
+    second = r.json()
+    assert second["refresh_token"] != first["refresh_token"]
+    assert anon_client.get("/auth/me", headers=bearer(second["access_token"])).status_code == 200
+
+
+def test_refresh_token_is_single_use_and_reuse_signs_out_everywhere(anon_client):
+    first = tokens(anon_client)
+    second = anon_client.post("/auth/refresh", json={"refresh_token": first["refresh_token"]}).json()
+    # Replaying the old one fails...
+    assert anon_client.post("/auth/refresh", json={"refresh_token": first["refresh_token"]}).status_code == 401
+    # ...and because that looks like theft, the newer token is revoked too
+    assert anon_client.post("/auth/refresh", json={"refresh_token": second["refresh_token"]}).status_code == 401
+
+
+def test_refresh_rejects_garbage_and_expired_tokens(anon_client, monkeypatch):
+    assert anon_client.post("/auth/refresh", json={"refresh_token": "nope"}).status_code == 401
+    monkeypatch.setenv("REFRESH_EXPIRE_DAYS", "-1")
+    expired = tokens(anon_client)["refresh_token"]
+    assert anon_client.post("/auth/refresh", json={"refresh_token": expired}).status_code == 401
+
+
+def test_refresh_token_is_not_an_access_token(anon_client):
+    t = tokens(anon_client)
+    assert anon_client.get("/accounts", headers=bearer(t["refresh_token"])).status_code == 401
+
+
+def test_logout_revokes_the_refresh_token(anon_client):
+    t = tokens(anon_client)
+    assert anon_client.post("/auth/logout", json={"refresh_token": t["refresh_token"]}).status_code == 204
+    assert anon_client.post("/auth/refresh", json={"refresh_token": t["refresh_token"]}).status_code == 401
+    # Logging out twice, or with an unknown token, is not an error
+    assert anon_client.post("/auth/logout", json={"refresh_token": t["refresh_token"]}).status_code == 204
+    assert anon_client.post("/auth/logout", json={"refresh_token": "unknown"}).status_code == 204
+
+
+def test_refresh_tokens_are_stored_hashed(anon_client, engine):
+    from app.models import RefreshToken
+
+    t = tokens(anon_client)
+    with Session(engine) as s:
+        row = s.exec(select(RefreshToken)).one()
+        assert row.token_hash != t["refresh_token"] and len(row.token_hash) == 64
+
+
+def test_token_with_wrong_type_is_rejected(anon_client):
+    login(anon_client)
+    claims = {"sub": "1", "type": "refresh", "exp": utcnow().timestamp() + 3600}
+    token = jwt.encode(claims, JWT_SECRET, algorithm=ALGORITHM)
+    assert anon_client.get("/accounts", headers=bearer(token)).status_code == 401
 
 
 # ---- no token -> 401 ---------------------------------------------------------------------------

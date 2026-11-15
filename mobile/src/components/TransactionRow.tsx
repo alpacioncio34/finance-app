@@ -1,10 +1,12 @@
-import { Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 
-import { IconTile, Text } from '@/components/ui';
+import { IconTile, Row, Text } from '@/components/ui';
 import type { Account, Category, Transaction } from '@/lib/api';
 import { formatMoney } from '@/lib/format';
-import { space, useTheme } from '@/lib/theme';
+import { useTheme } from '@/lib/theme';
 
+/** One transaction as a line of a RowGroup. */
 export function TransactionRow({
   tx,
   category,
@@ -20,21 +22,23 @@ export function TransactionRow({
   showDate?: string;
 }) {
   const t = useTheme();
-  const color = category?.color ?? t.muted;
   const isIncome = tx.kind === 'income';
-  const meta = [showDate, category?.name, account?.name].filter(Boolean).join(', ');
+  const fromBank = tx.external_id !== null;
+  const meta = [showDate, category?.name ?? 'No category', account?.name].filter(Boolean).join(', ');
+  const amount = formatMoney(isIncome ? tx.amount_cents : -tx.amount_cents, account?.currency, { signed: true });
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md }}>
-        <IconTile icon={category?.icon} color={color} label={category?.name} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text numberOfLines={1}>{tx.description || category?.name || 'Transaction'}</Text>
-          {!!meta && <Text variant="caption" numberOfLines={1}>{meta}</Text>}
+    <Row
+      onPress={onPress}
+      accessibilityLabel={`${tx.description || category?.name || 'Transaction'}, ${amount}${fromBank ? ', from your bank' : ''}`}
+      leading={<IconTile icon={category?.icon ?? 'help'} color={category?.color ?? t.muted} />}
+      title={tx.description || category?.name || 'Transaction'}
+      subtitle={
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          {fromBank && <Ionicons name="link" size={12} color={t.bank} />}
+          <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>{meta}</Text>
         </View>
-        <Text variant="amount" color={isIncome ? t.income : t.text}>
-          {formatMoney(isIncome ? tx.amount_cents : -tx.amount_cents, account?.currency, { signed: true })}
-        </Text>
-      </View>
-    </Pressable>
+      }
+      trailing={<Text variant="amount" color={isIncome ? t.income : t.text}>{amount}</Text>}
+    />
   );
 }

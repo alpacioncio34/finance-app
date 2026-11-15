@@ -2,6 +2,8 @@
 
 Routers must not write their own SUM queries: when transfers arrive they have to be
 excluded from income/expense totals, and that rule should change in one place only.
+
+Every function takes the user's id and only ever sums that user's rows.
 """
 
 from sqlalchemy import case
@@ -24,45 +26,52 @@ def _in_month(month: str):
     return Transaction.date >= start, Transaction.date < end
 
 
-def month_totals(session: Session, month: str) -> tuple[int, int]:
+def month_totals(session: Session, user_id: int, month: str) -> tuple[int, int]:
     """(income_cents, expense_cents) for the month."""
     rows = dict(
         session.exec(
             select(Transaction.kind, func.sum(Transaction.amount_cents))
-            .where(*_in_month(month))
+            .where(Transaction.user_id == user_id, *_in_month(month))
             .group_by(Transaction.kind)
         ).all()
     )
     return int(rows.get(TxKind.income) or 0), int(rows.get(TxKind.expense) or 0)
 
 
-def spending_by_category(session: Session, month: str) -> dict[int | None, int]:
+def spending_by_category(session: Session, user_id: int, month: str) -> dict[int | None, int]:
     """Expense total per category id for the month. Uncategorised spending is under `None`."""
     rows = session.exec(
         select(Transaction.category_id, func.sum(Transaction.amount_cents))
-        .where(Transaction.kind == TxKind.expense, *_in_month(month))
+        .where(Transaction.user_id == user_id, Transaction.kind == TxKind.expense, *_in_month(month))
         .group_by(Transaction.category_id)
     ).all()
     return {cid: int(total) for cid, total in rows}
 
 
-def account_balances(session: Session) -> dict[int, int]:
+def account_balances(session: Session, user_id: int) -> dict[int, int]:
     """Current balance per account id, in cents."""
     movements = dict(
         session.exec(
             select(Transaction.account_id, func.coalesce(func.sum(signed_amount()), 0))
+            .where(Transaction.user_id == user_id)
             .group_by(Transaction.account_id)
         ).all()
     )
     return {
         acc.id: acc.initial_balance_cents + int(movements.get(acc.id, 0))
-        for acc in session.exec(select(Account)).all()
+        for acc in session.exec(select(Account).where(Account.user_id == user_id)).all()
     }
+
+
+def account_movements(session: Session, account: Account) -> int:
+    """Σ income − Σ expense of one account, in cents (the balance without the initial balance)."""
+    return int(
+        session.exec(
+            select(func.coalesce(func.sum(signed_amount()), 0)).where(Transaction.account_id == account.id)
+        ).one()
+    )
 
 
 def account_balance(session: Session, account: Account) -> int:
     """Current balance of one account, in cents."""
-    movements = session.exec(
-        select(func.coalesce(func.sum(signed_amount()), 0)).where(Transaction.account_id == account.id)
-    ).one()
-    return account.initial_balance_cents + int(movements)
+    return account.initial_balance_cents + account_movements(session, account)

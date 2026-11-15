@@ -21,7 +21,7 @@ export function CategoryBreakdown({
   return (
     <View style={{ gap: space.lg }}>
       {/* One bar, full width: each category's share of the month */}
-      <View style={{ flexDirection: 'row', height: 22, borderRadius: 6, overflow: 'hidden', backgroundColor: t.track, gap: 2 }}>
+      <View style={{ flexDirection: 'row', height: 22, borderRadius: 7, overflow: 'hidden', backgroundColor: t.track, gap: 2 }}>
         {items.map((i) => (
           <View key={i.name} accessibilityLabel={`${i.name} ${formatMoney(i.amount_cents)}`} style={{ flex: i.amount_cents, backgroundColor: i.color }} />
         ))}

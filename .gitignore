@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 backend/finance.db
+backend/finance.db.*
 
 # Node / Expo
 node_modules/

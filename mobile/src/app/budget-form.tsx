@@ -2,15 +2,13 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 
-import { Button, ChipPicker, Field, Input, Screen, Text, type IconName } from '@/components/ui';
+import { Button, ChipPicker, Field, Input, Notice, Screen, type IconName } from '@/components/ui';
 import { api } from '@/lib/api';
 import { confirm } from '@/lib/confirm';
 import { centsToInput, currentMonth, monthLabel, parseAmountToCents } from '@/lib/format';
 import { useLookups } from '@/lib/lookups';
-import { useTheme } from '@/lib/theme';
 
 export default function BudgetForm() {
-  const t = useTheme();
   const params = useLocalSearchParams<{ month?: string; category_id?: string; id?: string; limit?: string }>();
   const month = params.month ?? currentMonth();
   const editingId = params.id ? Number(params.id) : null;
@@ -33,26 +31,37 @@ export default function BudgetForm() {
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
       setSaving(false);
     }
   }
 
   async function remove() {
-    if (editingId && (await confirm('Remove budget?', 'Your transactions are not affected.'))) {
-      await api.deleteBudget(editingId);
-      router.back();
+    if (editingId && (await confirm('Remove budget?', 'Your transactions are not affected.', 'Remove'))) {
+      try {
+        await api.deleteBudget(editingId);
+        router.back();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     }
   }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: `${editingId ? 'Edit' : 'New'} budget · ${monthLabel(month)}` }} />
-      <Screen>
+      <Screen
+        footer={
+          <>
+            <Button title="Save budget" onPress={save} loading={saving} />
+            {editingId && <Button title="Remove budget" variant="danger" icon="trash-outline" onPress={remove} disabled={saving} />}
+          </>
+        }>
+        {error && <Notice tone="danger" icon="alert-circle">{error}</Notice>}
         <Field label="Category">
           <ChipPicker
             value={categoryId}
-            onChange={editingId ? () => {} : setCategoryId}
+            onChange={setCategoryId}
+            disabled={!!editingId}
             options={categories
               .filter((c) => c.kind === 'expense' && (!editingId || c.id === categoryId))
               .map((c) => ({ value: c.id, label: c.name, color: c.color, icon: c.icon as IconName }))}
@@ -61,9 +70,6 @@ export default function BudgetForm() {
         <Field label="Monthly limit in euros">
           <Input value={limit} onChangeText={setLimit} placeholder="0,00" keyboardType="decimal-pad" autoFocus />
         </Field>
-        {error && <Text color={t.expense}>{error}</Text>}
-        <Button title="Save budget" onPress={save} loading={saving} />
-        {editingId && <Button title="Remove budget" variant="danger" icon="trash-outline" onPress={remove} />}
       </Screen>
     </KeyboardAvoidingView>
   );
