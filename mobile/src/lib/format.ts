@@ -78,9 +78,9 @@ export function timeAgo(iso: string, now = Date.now()): string {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-/** Same rule as the backend's UserCreate, so most mistakes are caught before the request. */
-export function isValidEmail(s: string): boolean {
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.trim());
+/** 'YYYY-MM' -> first day and the day after the last one, both as 'YYYY-MM-DD' (end is exclusive). */
+export function monthRange(month: string): { start: string; end: string } {
+  const [y, m] = month.split('-').map(Number);
+  const end = m === 12 ? `${y + 1}-01-01` : `${y}-${pad(m + 1)}-01`;
+  return { start: `${month}-01`, end };
 }
-
-export const MIN_PASSWORD_LENGTH = 8;

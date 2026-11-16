@@ -4,7 +4,9 @@ import { RefreshControl, View } from 'react-native';
 
 import { TransactionRow } from '@/components/TransactionRow';
 import { ChipPicker, Empty, ErrorBanner, Fab, MonthSwitcher, RowGroup, Screen, Segmented, Text } from '@/components/ui';
-import { api, type Transaction, type TxKind } from '@/lib/api';
+import { db } from '@/lib/db';
+import { signedCents } from '@/lib/money';
+import type { Transaction, TxKind } from '@/lib/types';
 import { currentMonth, dayLabel, formatMoney } from '@/lib/format';
 import { useLookups } from '@/lib/lookups';
 import { space, useTheme } from '@/lib/theme';
@@ -19,7 +21,7 @@ export default function Transactions() {
   const [filter, setFilter] = useState<Filter>('all');
   const [accountId, setAccountId] = useState(ALL_ACCOUNTS);
   const { data, error, loading, refetch } = useQuery(
-    () => api.transactions({ month, kind: filter === 'all' ? undefined : filter, account_id: accountId || undefined }),
+    () => db.transactions({ month, kind: filter === 'all' ? undefined : filter, account_id: accountId || undefined }),
     [month, filter, accountId],
   );
   const { accounts, accountById, categoryById } = useLookups();
@@ -48,7 +50,7 @@ export default function Transactions() {
               onChange={setAccountId}
               options={[
                 { value: ALL_ACCOUNTS, label: 'All accounts' },
-                ...accounts.map((a) => ({ value: a.id, label: a.name, color: a.source === 'bank' ? t.bank : undefined, icon: a.source === 'bank' ? ('link' as const) : undefined })),
+                ...accounts.map((a) => ({ value: a.id, label: a.name })),
               ]}
             />
           )}
@@ -57,7 +59,7 @@ export default function Transactions() {
         {data?.length === 0 && <Empty icon="receipt-outline" title="Nothing here this month" hint="Tap + to add a transaction, or change the filters above." />}
 
         {[...groups.entries()].map(([day, txs]) => {
-          const dayTotal = txs.reduce((s, x) => s + (x.kind === 'income' ? x.amount_cents : -x.amount_cents), 0);
+          const dayTotal = txs.reduce((s, x) => s + signedCents(x), 0);
           return (
             <View key={day} style={{ gap: space.sm }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: space.xs }}>

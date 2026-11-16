@@ -5,7 +5,7 @@ import { RefreshControl, View } from 'react-native';
 import { CategoryBreakdown, TrendChart } from '@/components/charts';
 import { TransactionRow } from '@/components/TransactionRow';
 import { Button, Card, Empty, ErrorBanner, Fab, IconButton, MonthSwitcher, Panel, PanelBar, RowGroup, Screen, Section, Text } from '@/components/ui';
-import { api } from '@/lib/api';
+import { db } from '@/lib/db';
 import { currentMonth, formatMoney, monthLabel } from '@/lib/format';
 import { useLookups } from '@/lib/lookups';
 import { space, useTheme } from '@/lib/theme';
@@ -14,7 +14,7 @@ import { useQuery } from '@/lib/useQuery';
 export default function Overview() {
   const t = useTheme();
   const [month, setMonth] = useState(currentMonth());
-  const { data, error, loading, refetch } = useQuery(() => api.dashboard(month), [month]);
+  const { data, error, loading, refetch } = useQuery(() => db.dashboard(month), [month]);
   const { accounts, accountById, categoryById, loading: lookupsLoading } = useLookups();
 
   const income = data?.income_cents ?? 0;
@@ -26,14 +26,13 @@ export default function Overview() {
     <>
       <Screen
         title="Overview"
-        action={<IconButton icon="person-outline" label="Settings" onPress={() => router.push('/settings')} />}
+        action={<IconButton icon="settings-outline" label="Settings" onPress={() => router.push('/settings')} />}
         refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={refetch} />}>
         {error && <ErrorBanner message={error} onRetry={refetch} />}
 
         {noAccounts ? (
-          <Empty icon="wallet-outline" title="Start with an account" hint="Connect a bank to bring in your balances and transactions, or add an account and enter them yourself.">
-            <Button title="Connect a bank" variant="bank" icon="link" onPress={() => router.push('/connect-bank')} />
-            <Button title="Add an account by hand" variant="secondary" icon="create-outline" onPress={() => router.push('/account-form')} />
+          <Empty icon="wallet-outline" title="Start with an account" hint="Add an account, such as your wallet or current account, then record your transactions. Everything is saved on this phone.">
+            <Button title="Add an account" icon="create-outline" onPress={() => router.push('/account-form')} />
           </Empty>
         ) : (
           <>

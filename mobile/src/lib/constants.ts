@@ -1,5 +1,5 @@
 import type { IconName } from '@/components/ui';
-import type { AccountType } from '@/lib/api';
+import type { AccountType } from '@/lib/types';
 
 export const ACCOUNT_TYPES: { value: AccountType; label: string; icon: IconName }[] = [
   { value: 'checking', label: 'Checking', icon: 'card' },

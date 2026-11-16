@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
 
 import { Button, Card, Empty, ErrorBanner, Fab, IconTile, MonthSwitcher, Panel, PanelBar, ProgressBar, Screen, Text } from '@/components/ui';
-import { api } from '@/lib/api';
+import { db } from '@/lib/db';
 import { currentMonth, formatMoney, monthLabel, shiftMonth } from '@/lib/format';
 import { space, useTheme } from '@/lib/theme';
 import { useQuery } from '@/lib/useQuery';
@@ -11,7 +11,7 @@ import { useQuery } from '@/lib/useQuery';
 export default function Budgets() {
   const t = useTheme();
   const [month, setMonth] = useState(currentMonth());
-  const { data, error, loading, refetch } = useQuery(() => api.budgets(month), [month]);
+  const { data, error, loading, refetch } = useQuery(() => db.budgets(month), [month]);
   const [copying, setCopying] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
 
@@ -23,7 +23,7 @@ export default function Budgets() {
     setCopying(true);
     setCopyError(null);
     try {
-      const copied = await api.copyBudgets(prev, month);
+      const copied = await db.copyBudgets(prev, month);
       if (copied.length === 0) setCopyError(`There are no budgets in ${monthLabel(prev)} to copy.`);
       await refetch();
     } catch (e) {

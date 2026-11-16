@@ -5,7 +5,6 @@ import { useColorScheme } from 'react-native';
  *
  * Two colours carry meaning beyond decoration:
  * - `accent` (pine) is the app's own colour: actions, and anything you entered by hand.
- * - `bank` (blue) marks everything that comes from a connected bank and is read-only.
  */
 const palette = {
   light: {

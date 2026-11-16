@@ -1,40 +1,52 @@
-import { useState } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
-import { Button, Card, IconTile, Row, RowGroup, Screen, Text } from '@/components/ui';
-import { API_URL } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
+import { Button, Card, Notice, Screen, Text } from '@/components/ui';
+import { db } from '@/lib/db';
 import { confirm } from '@/lib/confirm';
-import { space, useTheme } from '@/lib/theme';
+import { space } from '@/lib/theme';
 
 export default function Settings() {
-  const t = useTheme();
-  const { user, signOut } = useAuth();
+  const [stats, setStats] = useState<{ accounts: number; transactions: number; budgets: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function leave() {
-    if (!(await confirm('Sign out?', 'Your data stays on the server. You can sign back in at any time.', 'Sign out'))) return;
+  useEffect(() => {
+    db.stats().then(setStats).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  async function eraseAll() {
+    if (!(await confirm('Erase all data?', 'Every account, transaction and budget on this device is deleted. This cannot be undone.', 'Erase everything'))) return;
     setBusy(true);
-    // The root layout shows the sign-in screen as soon as the session ends
-    await signOut();
+    try {
+      await db.eraseAll();
+      router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
   }
 
   return (
     <Screen>
-      <RowGroup>
-        <Row
-          leading={<IconTile color={t.accent} background={t.accentSoft} label={user?.email} />}
-          title={user?.email ?? ''}
-          subtitle="Signed in"
-        />
-      </RowGroup>
-
       <Card style={{ gap: space.xs }}>
-        <Text variant="label">Server</Text>
-        <Text>{API_URL}</Text>
-        <Text variant="caption">Set EXPO_PUBLIC_API_URL to point the app at another backend.</Text>
+        <Text variant="label">Stored on this device</Text>
+        <Text>
+          {stats
+            ? `${stats.accounts} account${stats.accounts === 1 ? '' : 's'}, ${stats.transactions} transaction${stats.transactions === 1 ? '' : 's'}, ${stats.budgets} budget${stats.budgets === 1 ? '' : 's'}`
+            : ' '}
+        </Text>
+        <Text variant="caption">
+          {Platform.OS === 'web'
+            ? 'In this browser only. Clearing site data for this page deletes it.'
+            : 'Nothing is sent anywhere. Uninstalling the app deletes it.'}
+        </Text>
       </Card>
 
-      <Button title="Sign out" variant="danger" icon="log-out-outline" onPress={leave} loading={busy} />
+      {error && <Notice tone="danger" icon="alert-circle">{error}</Notice>}
+
+      <Button title="Erase all data" variant="danger" icon="trash-outline" onPress={eraseAll} loading={busy} />
     </Screen>
   );
 }

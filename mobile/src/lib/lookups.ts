@@ -1,9 +1,10 @@
-import { api, type Account, type Category } from '@/lib/api';
+import { db } from '@/lib/db';
+import type { Account, Category } from '@/lib/types';
 import { useQuery } from '@/lib/useQuery';
 
 /** Accounts + categories as id-indexed maps, for rendering rows and pickers. */
 export function useLookups() {
-  const q = useQuery(() => Promise.all([api.accounts(), api.categories()]));
+  const q = useQuery(() => Promise.all([db.accounts(), db.categories()]));
   const [accounts = [], categories = []] = q.data ?? [];
   return {
     ...q,

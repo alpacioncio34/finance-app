@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 
 import { Button, ChipPicker, Field, Input, Notice, Screen, type IconName } from '@/components/ui';
-import { api } from '@/lib/api';
+import { db } from '@/lib/db';
 import { confirm } from '@/lib/confirm';
 import { centsToInput, currentMonth, monthLabel, parseAmountToCents } from '@/lib/format';
 import { useLookups } from '@/lib/lookups';
@@ -26,8 +26,8 @@ export default function BudgetForm() {
     setError(null);
     setSaving(true);
     try {
-      // POST upserts: creates or updates the limit for this category + month
-      await api.setBudget({ category_id: categoryId, month, limit_cents: cents });
+      // Creates the budget, or changes its limit if this category already has one this month
+      await db.setBudget({ category_id: categoryId, month, limit_cents: cents });
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -38,7 +38,7 @@ export default function BudgetForm() {
   async function remove() {
     if (editingId && (await confirm('Remove budget?', 'Your transactions are not affected.', 'Remove'))) {
       try {
-        await api.deleteBudget(editingId);
+        await db.deleteBudget(editingId);
         router.back();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
